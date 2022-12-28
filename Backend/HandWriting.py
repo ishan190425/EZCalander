@@ -1,23 +1,40 @@
 import cv2
 import pytesseract
 import numpy as np
+import matplotlib.pyplot as plt
 
 class HandWriting():
     def __init__(self) -> None:
-        pass
-
+        self.index = 1
+        self.white = (255,255,255)
+        self.blue = (0,0,255)
+        self.red = (255,0,0)
+        self.green = (0,255,0)
+        self.black = (0,0,0)
+    
+    def show_image(self,image,title):
+        plt.imshow(image)
+        plt.title(title)
+        self.index += 1
+        plt.show()
+        
+        
     def read_handwritten_table(self,image_path):
         # Load the image and convert it to grayscale
         image = cv2.imread(image_path)
-    
+        #self.show_image(image,"Original")
+        
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        #self.show_image(gray,"Gray - 1")
         
         # Apply image enhancement techniques to improve the quality of the image
         thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+        #self.show_image(thresh,"Threshold - 2")
         
         # Identify and extract the region of the image that contains the table
         # This can be done using techniques such as contour detection or template matching
         table_region = self.extract_table_region(thresh)
+        #self.show_image(table_region,"Table Region - 3")
         
         # Identify the lines that define the rows and columns of the table
         # This can be done using techniques such as edge detection or Hough line transformation
@@ -30,7 +47,7 @@ class HandWriting():
         
         # Organize the data into a structured format, such as a 2D array or a pandas DataFrame
         data = self.organize_data(data, rows, cols)
-        
+
         return data
 
     def read_data_from_cells(self, cells):
@@ -69,15 +86,35 @@ class HandWriting():
         # Apply Canny edge detection to find the edges in the image
         edges = cv2.Canny(blur, 50, 150)
         
+        rho = 1  # distance resolution in pixels of the Hough grid
+        
+        theta = np.pi / 180  # angular resolution in radians of the Hough grid
+        
+        threshold = 15  # minimum number of votes (intersections in Hough grid cell)
+        
+        min_line_length = 80  # minimum number of pixels making up a line
+        
+        max_line_gap = 3  # maximum gap in pixels between connectable line segments
+        
+        line_image = np.copy(image) * 0  # creating a blank to draw lines on
+
+        # Run Hough on edge detected image
         # Find the lines in the image using Hough line transformation
-        lines = cv2.HoughLinesP(edges, 1, np.pi/180, 100, minLineLength=100, maxLineGap=10)
+        lines = cv2.HoughLinesP(edges, rho, theta, threshold, np.array([]),
+                            min_line_length, max_line_gap)
+        
+        line_image = np.copy(image)
         
         # Extract the rows and columns of the table
-        rows, cols = self.extract_rows_and_cols(lines)
+        rows, cols = self.extract_rows_and_cols(lines,line_image,image)
+        
+        lines_edges = cv2.addWeighted(image, 0.8, line_image, 1, 0)
+        
+        self.show_image(lines_edges,"Lines")
         
         return rows, cols
 
-    def extract_rows_and_cols(self,lines):
+    def extract_rows_and_cols(self,lines,line_image,image=None):
     # Initialize empty lists to store the coordinates of the rows and columns
         rows = []
         cols = []
@@ -86,9 +123,19 @@ class HandWriting():
         for line in lines:
             x1, y1, x2, y2 = line[0]
             if abs(x1 - x2) > abs(y1 - y2):
-                cols.append(line)
-            else:
+                x2 += 1000
+                line[0][2] = x2
                 rows.append(line)
+                print("Row")
+                #x1 -= 1000
+            else:
+                y2 += 1000
+                y1 -= 1000
+                line[0][1] = y1
+                line[0][3] = y2
+                cols.append(line)
+                print("Col")
+            cv2.line(line_image, (x1, y1), (x2, y2), self.black, 5)
         
         # Sort the rows and columns by their coordinates
         rows.sort(key=lambda x: min(x[0][1], x[0][3]))
@@ -114,7 +161,8 @@ class HandWriting():
         rows.append(image.shape[0])
         cols = [line[0][0] for line in cols]
         cols.append(image.shape[1])
-        
+        rows_threshold = 50 # what is minimum amount of data to be useful - rows
+        cols_threshold = 50 # what is minimum amount of data to be useful - cols
         # Initialize a list to store the cells
         cells = []
         
@@ -122,10 +170,14 @@ class HandWriting():
         for i in range(len(rows) - 1):
             for j in range(len(cols) - 1):
                 # Crop the image to the current cell
+                rows_total = abs(rows[i] - rows[i+1])
+                cols_total = abs(cols[j] - cols[j+1])
+                # if rows_total < rows_threshold or cols_total < cols_threshold: #check if cell contains useful data
+                #     continue
                 cell = image[rows[i]:rows[i+1], cols[j]:cols[j+1]]
-                
                 # Add the cell to the list
                 cells.append(cell)
+                self.show_image(cell,"Cell")
         
         return cells
 
@@ -133,5 +185,5 @@ class HandWriting():
 
 if __name__ == "__main__":
     h = HandWriting()
-    data = h.read_handwritten_table("/home/rflix/Coding/EZCalander/Examples/example2.jpg")
+    data = h.read_handwritten_table("Examples/example2.jpg")
     print(f"Data: {data}")
