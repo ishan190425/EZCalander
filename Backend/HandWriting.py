@@ -126,7 +126,6 @@ class HandWriting():
                 x2 += 1000
                 line[0][2] = x2
                 rows.append(line)
-                print("Row")
                 #x1 -= 1000
             else:
                 y2 += 1000
@@ -134,12 +133,14 @@ class HandWriting():
                 line[0][1] = y1
                 line[0][3] = y2
                 cols.append(line)
-                print("Col")
             cv2.line(line_image, (x1, y1), (x2, y2), self.black, 5)
         
         # Sort the rows and columns by their coordinates
         rows.sort(key=lambda x: min(x[0][1], x[0][3]))
         cols.sort(key=lambda x: min(x[0][0], x[0][2]))
+
+        rows.insert(0,[[rows[0][0][0],0,rows[0][0][2],rows[0][0][1]]]) #insert space above first line
+        cols.insert(0,[[0,rows[0][0][1],rows[0][0][0],rows[0][0][3]]]) #insert space to left of first line
         
         return rows, cols
 
@@ -161,8 +162,8 @@ class HandWriting():
         rows.append(image.shape[0])
         cols = [line[0][0] for line in cols]
         cols.append(image.shape[1])
-        rows_threshold = 50 # what is minimum amount of data to be useful - rows
-        cols_threshold = 50 # what is minimum amount of data to be useful - cols
+        rows_threshold = 50 #minimum amount of data to be useful - rows
+        cols_threshold = 50 #minimum amount of data to be useful - cols
         # Initialize a list to store the cells
         cells = []
         
@@ -172,8 +173,8 @@ class HandWriting():
                 # Crop the image to the current cell
                 rows_total = abs(rows[i] - rows[i+1])
                 cols_total = abs(cols[j] - cols[j+1])
-                # if rows_total < rows_threshold or cols_total < cols_threshold: #check if cell contains useful data
-                #     continue
+                if rows_total < rows_threshold or cols_total < cols_threshold: #check if cell contains useful data
+                    continue
                 cell = image[rows[i]:rows[i+1], cols[j]:cols[j+1]]
                 # Add the cell to the list
                 cells.append(cell)
