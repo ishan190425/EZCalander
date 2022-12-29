@@ -2,6 +2,7 @@ import cv2
 import pytesseract
 import numpy as np
 import matplotlib.pyplot as plt
+import tesserocr
 
 class HandWriting():
     def __init__(self) -> None:
@@ -38,10 +39,10 @@ class HandWriting():
         
         # Identify the lines that define the rows and columns of the table
         # This can be done using techniques such as edge detection or Hough line transformation
-        rows, cols = self.identify_table_lines(table_region)
+        rows, cols, edges = self.identify_table_lines(table_region)
         
         # Divide the table into individual cells based on the identified lines
-        cells = self.divide_into_cells(table_region, rows, cols)
+        cells = self.divide_into_cells(table_region, rows, cols, edges, image)
         
         data = self.read_data_from_cells(cells)
         
@@ -49,19 +50,7 @@ class HandWriting():
         data = self.organize_data(data, rows, cols)
 
         return data
-
-    def read_data_from_cells(self, cells):
-         # Initialize an empty list to store the data from the table
-        data = []
-        # Iterate over the cells and extract the text using tesseract
-        for i, cell in enumerate(cells):
-            try:
-                cell_text = pytesseract.image_to_string(cell)
-                data.append(cell_text)
-            except:
-                continue
-        return data
-
+    
     def extract_table_region(self,image):
         # Find the contours in the image
         contours = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -85,6 +74,7 @@ class HandWriting():
         
         # Apply Canny edge detection to find the edges in the image
         edges = cv2.Canny(blur, 50, 150)
+        self.show_image(edges,"Edges")
         
         rho = 1  # distance resolution in pixels of the Hough grid
         
@@ -92,33 +82,31 @@ class HandWriting():
         
         threshold = 15  # minimum number of votes (intersections in Hough grid cell)
         
-        min_line_length = 80  # minimum number of pixels making up a line
+        min_line_length = 90  # minimum number of pixels making up a line
         
         max_line_gap = 3  # maximum gap in pixels between connectable line segments
         
-        line_image = np.copy(image) * 0  # creating a blank to draw lines on
+        line_image = np.copy(edges) * 0  # creating a blank to draw lines on
 
         # Run Hough on edge detected image
         # Find the lines in the image using Hough line transformation
         lines = cv2.HoughLinesP(edges, rho, theta, threshold, np.array([]),
                             min_line_length, max_line_gap)
-        
-        line_image = np.copy(image)
+    
         
         # Extract the rows and columns of the table
         rows, cols = self.extract_rows_and_cols(lines,line_image,image)
         
-        lines_edges = cv2.addWeighted(image, 0.8, line_image, 1, 0)
+        lines_edges = cv2.addWeighted(edges, 0.8, line_image, 1, 0)
         
         self.show_image(lines_edges,"Lines")
         
-        return rows, cols
+        return rows, cols, edges
 
     def extract_rows_and_cols(self,lines,line_image,image=None):
     # Initialize empty lists to store the coordinates of the rows and columns
         rows = []
         cols = []
-        
         # Iterate over the lines and categorize them as rows or columns based on their orientation
         for line in lines:
             x1, y1, x2, y2 = line[0]
@@ -126,14 +114,14 @@ class HandWriting():
                 x2 += 1000
                 line[0][2] = x2
                 rows.append(line)
-                #x1 -= 1000
+                x1 -= 1000
             else:
                 y2 += 1000
                 y1 -= 1000
                 line[0][1] = y1
                 line[0][3] = y2
                 cols.append(line)
-            cv2.line(line_image, (x1, y1), (x2, y2), self.black, 5)
+            cv2.line(line_image, (x1, y1), (x2, y2), self.white, 5)
         
         # Sort the rows and columns by their coordinates
         rows.sort(key=lambda x: min(x[0][1], x[0][3]))
@@ -141,7 +129,7 @@ class HandWriting():
 
         rows.insert(0,[[rows[0][0][0],0,rows[0][0][2],rows[0][0][1]]]) #insert space above first line
         cols.insert(0,[[0,rows[0][0][1],rows[0][0][0],rows[0][0][3]]]) #insert space to left of first line
-        
+    
         return rows, cols
 
     def organize_data(self,data, rows, cols):
@@ -156,7 +144,7 @@ class HandWriting():
     
         return organized_data
 
-    def divide_into_cells(self, image, rows, cols):
+    def divide_into_cells(self, image, rows, cols, edges, org):
         # Convert the rows and columns to a form that is easier to manipulate
         rows = [line[0][1] for line in rows]
         rows.append(image.shape[0])
@@ -175,12 +163,26 @@ class HandWriting():
                 cols_total = abs(cols[j] - cols[j+1])
                 if rows_total < rows_threshold or cols_total < cols_threshold: #check if cell contains useful data
                     continue
-                cell = image[rows[i]:rows[i+1], cols[j]:cols[j+1]]
+                cell = org[rows[i]:rows[i+1], cols[j]:cols[j+1]]
                 # Add the cell to the list
                 cells.append(cell)
-                self.show_image(cell,"Cell")
         
         return cells
+
+    def read_data_from_cells(self, cells):
+        # Initialize an empty list to store the data from the table
+        data = []
+        # Iterate over the cells and extract the text using tesseract
+        for i, cell in enumerate(cells):
+            try:
+                self.show_image(cell, "Cell")
+                cell_text = pytesseract.image_to_string(cell)
+                data.append(cell_text)
+                print(cell_text)
+            except:
+                continue
+        return data
+
 
 
 
