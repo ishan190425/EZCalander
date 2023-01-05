@@ -80,9 +80,9 @@ class HandWriting():
         
         theta = np.pi / 180  # angular resolution in radians of the Hough grid
         
-        threshold = 15  # minimum number of votes (intersections in Hough grid cell)
+        threshold = 10  # minimum number of votes (intersections in Hough grid cell)
         
-        min_line_length = 90  # minimum number of pixels making up a line
+        min_line_length = 63  # minimum number of pixels making up a line
         
         max_line_gap = 3  # maximum gap in pixels between connectable line segments
         
